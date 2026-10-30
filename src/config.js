@@ -35,13 +35,13 @@ export const CONFIG = {
     freddy: {
       enabled: true, name: 'Freddy', side: 'right', color: '#d8a07b',
       route: ['1A', '1B', '7', '6', '4A', '4B', 'door'],
-      startAt: 135, moveInterval: [22, 28], attackDelay: 5, blockDuration: 3,
+      startAt: 190, moveInterval: [22, 28], attackDelay: 5, blockDuration: 3,
       retreatIndex: 1,
     },
     foxy: {
       enabled: true, name: 'Foxy', side: 'left', color: '#e78674',
       route: ['1C', '2A', 'door'], startAt: 75,
-      progressionPerSecond: 0.46, watchedRecoveryPerSecond: 0.9,
+      progressionPerSecond: 0.46, watchedRecoveryPerSecond: 2.5,
       thresholds: [25, 55, 85], sprintDelay: 5, attackDelay: 1,
       blockDuration: 0.5, knockPower: 3,
     },

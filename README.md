@@ -34,7 +34,7 @@ Camera keys: **1 → 1A**, **2 → 1B**, **3 → 1C**, **4 → 2A**, **5 → 2B*
 - Bonnie follows Stage → Dining → West Hall → West Hall Corner → left doorway. Chica and Freddy take the right-side route through Restrooms, Kitchen, East Hall, and East Hall Corner. Freddy starts later and gives a shorter doorway warning.
 - A camera nameplate indicates an actual enemy position. Decorative heads in supplied room images are scenery. Doorway movement indicators remain visible even before checking a light; lights reveal the threat's identity.
 - Close the **left** door for Bonnie or Foxy and the **right** door for Chica or Freddy. Hold it closed until the threat retreats (normally three seconds; Foxy half a second). A retreat notice tells you whether another enemy still occupies that doorway. The wrong door and the camera monitor provide no protection.
-- Foxy progresses from closed curtains to peeking, emerged, and empty at Pirate Cove. Watching **CAM 1C** reduces his activity. If ignored, he appears in West Hall with a persistent five-second sprint warning; close the left door. A blocked sprint costs an extra three power points.
+- Foxy progresses from closed curtains to peeking, emerged, and empty at Pirate Cove. Watching **CAM 1C** reduces his activity; a few seconds of watching rolls him back a stage. If ignored, he appears in West Hall with a persistent five-second sprint warning; close the left door. A blocked sprint costs an extra three power points.
 - Base drain is **0.14 power points/second**. Each closed door adds **0.22**, each light **0.13**, and the monitor **0.10**. All add together. Keeping both doors shut throughout the night will exhaust power.
 - Zero power opens both doors and disables lights and cameras. Other enemy attacks stop and an **18-second outage attack** begins. You can still win if dawn arrives first. Reaching 6 AM wins a simultaneous tie with a new attack.
 - Loss, win, retry, and menu transitions resolve once. Each retry starts with full power, midnight, open doors, lights and monitor off, fresh enemy timers, and no old outcome. There are no per-enemy browser timers to leak between runs.
@@ -59,6 +59,8 @@ Run the repeatable checks by opening [http://localhost:8000/tests/browser-tests.
 
 Verified locally in Chrome on **2026-10-28: 32/32 checks passed**, including the live animation loop, visibility/focus pause, all-artwork fallbacks, overlapping doorway threats, and Foxy's full-frame sprint artwork. All 33 files in the current asset manifest matched their recorded checksums. The title and office were also inspected visually in the browser. Run the regression page above to repeat the checks.
 
+Re-run in Chrome on **2026-10-30 after the Phase 2 Night 1 tuning: 37/38 browser checks and 16/16 engine checks passed.** The regression page now has 38 checks. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
+
 ## Code and artwork integration
 
 | File | Responsibility |
@@ -74,6 +76,35 @@ The code uses the exact supplied camera paths from [the manifest](assets/asset-m
 
 Every office layer covers the same normalized 16:9 canvas, fitted without stretching. The current office variants are opaque full-scene images: **CSS clips left variants to the left 25% and right variants to the right 25%** before compositing, so one side cannot cover the other. Future transparent full-canvas overlays use the same alignment. Fallback doors and lights use percentages of that canvas. No images, asset inventory, or manifest were edited by the gameplay implementation; artwork supplied by the parallel image task is loaded as it becomes available.
 
+## Phase 2 changes
+
+This phase continues the original design rather than replacing it. Everything listed here is a change to the work received in the initial commit.
+
+### Night 1 tuning (`src/config.js` only)
+
+The previous handoff asked for the six-minute night to be tuned, "especially overlapping right-door threats and Foxy's warning window." Two values changed. No engine, rendering, input, or test code changed.
+
+| Setting | Before | After | Why |
+| --- | --- | --- | --- |
+| `freddy.startAt` | 135 s | 190 s | Chica's second visit and Freddy's first both reached the right door around 4:20 AM. In roughly 30% of nights both stood there at once, and every simulated loss came from that overlap. Freddy now leaves the stage around 3 AM and reaches the doorway around 5:10 AM. Right-door visits are spaced at least about 35 seconds apart. He is still the late threat with the shorter doorway warning. |
+| `foxy.watchedRecoveryPerSecond` | 0.9 | 2.5 | Watching CAM 1C barely mattered. A 2-second check every 25 seconds still let Foxy sprint in every simulated night. Now regular checks (about every 25 seconds) keep the curtain closed all night, and occasional checks (about every 45 seconds) delay the sprint to about 5:35 AM. If ignored, he still sprints at about 4:20 AM. His progression speed is unchanged, so an ignored Foxy behaves exactly as before. |
+
+Kept as is:
+- **Foxy's warning window** (a 5-second sprint plus a 1-second doorway delay). No simulated player lost to Foxy, even with 4.5-second reactions. The sprint warning appears in the status line below the scene, though, and that line is easy to miss while viewing cameras. So the generous window stays for Night 1.
+- **Power rates.** Careful play ends Night 1 with roughly 25–40% power.
+
+An ignored Foxy can still sprint while Chica is at the right door, which forces a two-door defense (about 7% of nights for a player who never checks the Cove). Watching the Cove prevents this.
+
+**How this was checked.** 2,000 simulated nights per player model ran on the real `src/engine.js`. The scripted players differed in reaction time, how often they checked Pirate Cove, and whether they reopened a door after the first retreat. A full night was then played in the browser through the `?dev=1` debug API to confirm the new timing. These checks are simulated and scripted; a human playtest of the new timing is still worthwhile.
+
+| Measure (2,000 simulated nights each) | Before | After |
+| --- | --- | --- |
+| Chica and Freddy at the right door at the same time | 28–32% of nights | 0% |
+| Foxy sprints despite a CAM 1C check about every 25 s | 100% of nights | 0% |
+| Wins, first-time player model (slow reactions, reopens after the first retreat, never checks the Cove) | 98.5% | 100% |
+
+Night 1 remains deliberately forgiving. Difficulty is meant to rise with Nights 2–5.
+
 ## Known limitations and next task
 
 - Only Night 1 exists. No Continue, saving, other nights, unlocks, stars, Custom Night, or Golden Freddy.
@@ -83,4 +114,4 @@ Every office layer covers the same normalized 16:9 canvas, fitted without stretc
 - Small portrait screens fit the scene but have compact controls; landscape is recommended. Device/browser coverage beyond the verified local Chrome run remains future work.
 - The original [Game Spec.docx](Game%20Spec.docx), [implementation plan](IMPLEMENTATION_PLAN.md), and artwork inventory describe broader future work. Their unchecked future features should not be read as implemented.
 
-**Next concrete task:** playtest and tune the six-minute Night 1 using `src/config.js`, especially overlapping right-door threats and Foxy's warning window; then add original audio cues and a mute control before expanding to Night 2.
+**Next concrete task:** Night 1 tuning is done (see Phase 2 changes). Add original audio cues and a mute control before expanding to Night 2.
