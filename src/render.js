@@ -151,7 +151,7 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
     renderEnemyMarkers(state);
   }
 
-  return function render(state, { dev = false, speed = 1, muted = false } = {}) {
+  return function render(state, { dev = false, speed = 1, muted = false, progress = { night: 1, stars: 0 } } = {}) {
     const playing = state.mode === 'playing';
     show('menu', state.mode === 'menu'); show('play', playing); show('result', ['won', 'lost'].includes(state.mode));
     show('menu-button', playing); show('pause-button', playing); show('dev-panel', dev);
@@ -165,7 +165,15 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
     text('dev-speed', `Speed: ${speed}×`);
     for (const id of ['dev-advance', 'dev-threat', 'dev-outage', 'dev-dawn']) els[id].disabled = !playing || state.paused || state.hidden;
 
-    if (state.mode === 'menu') show('title-fallback', !art('title-art', ASSETS.title));
+    if (state.mode === 'menu') {
+      show('title-fallback', !art('title-art', ASSETS.title));
+      // Continue appears once a win has unlocked a later night; stars stay through New Game.
+      show('continue', progress.night > 1);
+      text('continue', `Continue · Night ${progress.night}`);
+      show('stars', progress.stars > 0);
+      text('stars', '★'.repeat(progress.stars));
+      els.stars.setAttribute('aria-label', `${progress.stars} star${progress.stars === 1 ? '' : 's'} earned`);
+    }
     if (playing) {
       show('office', !state.monitor); show('monitor', state.monitor);
       show('outage-shade', state.outage); show('outage-message', state.outage);
@@ -212,10 +220,10 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
       els.result.classList.toggle('loss', !won);
       text('result-kicker', won ? 'SHIFT COMPLETE / YOU MADE IT' : 'SHIFT TERMINATED / SIGNAL LOST');
       text('result-title', won ? '6:00 AM' : 'Caught in the dark.');
-      text('result-description', won ? `The morning crew has arrived. ${finalNight ? 'You survived all five nights.' : `You survived Night ${night}.`}` : cause === 'outage' ? 'The power failed, and something found you before dawn. Conserve devices to keep the office online.' : `${name} reached the office through the ${config.enemies[cause]?.side} doorway. Close that door and hold it until the threat retreats.`);
+      text('result-description', won ? `The morning crew has arrived. ${finalNight ? 'You survived all five nights and earned a star.' : `You survived Night ${night}.`}` : cause === 'outage' ? 'The power failed, and something found you before dawn. Conserve devices to keep the office online.' : `${name} reached the office through the ${config.enemies[cause]?.side} doorway. Close that door and hold it until the threat retreats.`);
       art('loss-art', ASSETS.jumpscares[cause === 'outage' ? 'freddy' : cause], !won);
       text('retry', !won ? `Retry Night ${night} ↗` : finalNight ? `Play Night ${night} again ↗` : `Start Night ${night + 1} ↗`);
-      text('activity', !won ? 'Night ended. Retry starts a completely fresh shift.' : finalNight ? 'All five nights complete. Replay Night 5 or return to the menu.' : `Night ${night} complete. The next night is harder.`);
+      text('activity', !won ? 'Night ended. Retry starts a completely fresh shift.' : finalNight ? 'All five nights complete. Replay Night 5 or return to the menu.' : `Night ${night} complete. Night ${night + 1} is saved for Continue.`);
       els.activity.dataset.tone = won ? 'safe' : 'danger';
     } else {
       text('activity', 'Welcome to the night shift. Check your instructions before clocking in.');

@@ -1,6 +1,6 @@
 # FNAF1 — first playable
 
-A local browser survival game: last from midnight to 6 AM using cameras, independent doors and door lights, and limited power. **Nights 1–5 are playable with Bonnie, Chica, Freddy, and Foxy, and each night is harder than the last.** Plain HTML, CSS, and JavaScript; no install, build, account, or external service required.
+A local browser survival game: last from midnight to 6 AM using cameras, independent doors and door lights, and limited power. **Nights 1–5 are playable with Bonnie, Chica, Freddy, and Foxy, and each night is harder than the last.** Progress saves in your browser. Plain HTML, CSS, and JavaScript; no install, build, account, or external service required.
 
 ## Launch
 
@@ -10,7 +10,7 @@ Open this repository folder in VS Code, then run this in its terminal:
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-Open [http://localhost:8000](http://localhost:8000) in a current Chrome, Firefox, Edge, or Safari browser, and click **Start Night 1**. Keep the terminal running; press Ctrl+C there to stop the server. If port 8000 is occupied, use 8001 in both the command and URL. VS Code Live Server also works when serving the repository root. Opening `index.html` directly as a `file://` URL does not support the JavaScript modules reliably.
+Open [http://localhost:8000](http://localhost:8000) in a current Chrome, Firefox, Edge, or Safari browser, and click **New Game** (or **Continue** once you have won a night). Keep the terminal running; press Ctrl+C there to stop the server. If port 8000 is occupied, use 8001 in both the command and URL. VS Code Live Server also works when serving the repository root. Opening `index.html` directly as a `file://` URL does not support the JavaScript modules reliably.
 
 The game fits its complete scene into a responsive 16:9 area. A wide window or landscape phone gives the controls more room. Gameplay is entirely local and makes no external network requests. Nothing has been pushed to GitHub by this implementation.
 
@@ -24,12 +24,13 @@ The game fits its complete scene into a responsive 16:9 area. A wide window or l
 | Select camera | Click the camera map button | See mapping below |
 | Pause / resume | Click Pause / Resume | P |
 | Return to title | Click Menu | Esc |
+| Start over at Night 1 / resume the saved night | Click New Game / Continue on the title screen | Tab to the button, then Enter |
 | Retry a lost night / start the next night after a win | Click the result-screen button | Tab to the button, then Enter |
 | Mute / unmute sound | Click Mute below the game | M (works on every screen) |
 
 Camera keys: **1 → 1A**, **2 → 1B**, **3 → 1C**, **4 → 2A**, **5 → 2B**, **6 → 3**, **7 → 4A**, **8 → 4B**, **9 → 5**, **0 → 6**, **− → 7**. Camera selection works while the monitor is open. Door and light controls remain available while viewing cameras. Held keyboard lights release on keyup, window blur, pause, or tab hiding. Click-toggled lights remain on until toggled off or power fails.
 
-Sound starts when you click **Start Night 1**, because browsers block audio until the player interacts with the page. It goes silent while paused, while the tab is hidden, and on the title screen.
+Sound starts when you click **New Game**, **Continue**, or a result-screen button, because browsers block audio until the player interacts with the page. It goes silent while paused, while the tab is hidden, and on the title screen.
 
 ## How a night works
 
@@ -43,7 +44,7 @@ The numbers below are Night 1's. Later nights shorten them (see the last bullet)
 - Base drain is **0.14 power points/second**. Each closed door adds **0.22**, each light **0.13**, and the monitor **0.10**. All add together. Keeping both doors shut throughout the night will exhaust power.
 - Zero power opens both doors and disables lights and cameras. Other enemy attacks stop and an **18-second outage attack** begins. You can still win if dawn arrives first. Reaching 6 AM wins a simultaneous tie with a new attack.
 - Loss, win, retry, and menu transitions resolve once. Each retry starts with full power, midnight, open doors, lights and monitor off, fresh enemy timers, and no old outcome. There are no per-enemy browser timers to leak between runs.
-- Winning a night offers the next one; losing retries the same night. Nights 2–5 make enemies start sooner and move faster. They also shorten every doorway and Foxy sprint warning, speed up Foxy at Pirate Cove, and raise base drain (20% more on Night 5). For now, returning to the menu or refreshing starts again at Night 1.
+- Winning a night offers the next one; losing retries the same night. Nights 2–5 make enemies start sooner and move faster. They also shorten every doorway and Foxy sprint warning, speed up Foxy at Pirate Cove, and raise base drain (20% more on Night 5). Each win saves the next night in the browser, so **Continue** on the title screen resumes there after a refresh. Beating Night 5 earns a star on the title screen. **New Game** starts over at Night 1 but keeps earned stars, like the original.
 - Listen as well as look. Footsteps get louder and pan toward a side as an enemy approaches it. Kitchen clatter means someone is in CAM 6 (louder while you view that feed). Running feet mean Foxy is sprinting, and banging on the west door means you blocked him. The jumpscare sound ends a lost night; six chimes mark 6 AM.
 - Switching away from the browser tab or window pauses time, power drain, and enemies. Returning resumes automatically with a new timing baseline. P provides a separate manual pause that stays paused across tab changes.
 
@@ -60,6 +61,7 @@ Open [http://localhost:8000/?dev=1](http://localhost:8000/?dev=1). The developme
 - **5 seconds to dawn** moves the clock near 6 AM. Combine with Drain power to verify winning during an outage.
 - Append **&noart=1** to the development URL to force every artwork fallback without changing any image files.
 - **Next night** starts the following night (Night 5 wraps to Night 1). `nightDebug.night(n)` starts night `n` directly.
+- Development pages save under `fnaf1-progress-dev` instead of `fnaf1-progress`, so testing never changes real progress. The regression page clears that key when it finishes.
 - `nightDebug.sound()` reports whether sound is unlocked, running, or muted, plus the most recent cue names. The regression page's `manual=1` mode records cues without playing them, so running the tests is silent.
 
 The normal URL does not expose development controls or `window.nightDebug`. The regression iframe additionally uses `?dev=1&manual=1` to disable automatic advancement and drive exact elapsed-time steps. Do not use `manual=1` for normal play.
@@ -68,7 +70,7 @@ Run the repeatable checks by opening [http://localhost:8000/tests/browser-tests.
 
 Verified locally in Chrome on **2026-10-28: 32/32 checks passed**, including the live animation loop, visibility/focus pause, all-artwork fallbacks, overlapping doorway threats, and Foxy's full-frame sprint artwork. All 33 files in the current asset manifest matched their recorded checksums. The title and office were also inspected visually in the browser. Run the regression page above to repeat the checks.
 
-Re-run in Chrome on **2026-10-30 after the Phase 2 tuning, sound, and Nights 2–5 work: 41/42 browser checks and 18/18 engine checks passed.** The regression page now has 42 checks, including new sound and night-progression checks. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
+Re-run in Chrome on **2026-10-30 after the Phase 2 tuning, sound, Nights 2–5, and saving work: 46/47 checks passed (18/18 engine, 4/4 save, and 24/25 browser checks).** The regression page now has 47 checks, including new sound, night-progression, and save checks. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
 
 ## Code and artwork integration
 
@@ -80,6 +82,7 @@ Re-run in Chrome on **2026-10-30 after the Phase 2 tuning, sound, and Nights 2�
 | `src/config.js` | All night/power/AI tuning, enemy routes, and camera definitions, plus the Nights 2–5 scaling table |
 | `src/render.js` | Asset loading and state-to-DOM rendering; no simulation changes |
 | `src/audio.js` | Synthesized sound cues derived from state changes; no simulation changes (added in Phase 2) |
+| `src/save.js` | Validated browser save: unlocked night, stars, mute (added in Phase 2) |
 | `src/asset-paths.js` | **All gameplay image paths**, including planned artwork filenames |
 
 The code uses the exact supplied camera paths from [the manifest](assets/asset-manifest.json) and the planned destinations in [ASSETS.md](ASSETS.md). The original office and title screenshots with baked-in UI are retained but unused. Add artwork at its configured path and refresh; no code edit is required. Missing images show labeled temporary backgrounds or threat indicators and do not block gameplay. The loader warns once per missing optional path; the browser may also log its expected 404. A failed image is retried on the next page load.
@@ -181,13 +184,40 @@ Code changes outside the table:
 - Development panel: a **Next night** button.
 - Tests: two engine checks (Night 1 unchanged and each later night at least as hard; Night 5 survivable on power) and one browser check of the win/loss/Night 5 flow.
 
+### Saving, Continue, and stars (new `src/save.js`)
+
+The implementation plan's Phase 4 asked to "save the next unlocked night and earned stars locally after wins," with Continue resuming the saved night and safe handling of missing or invalid saves. It had already proposed `src/save.js` for this.
+
+- **What is saved.** One small JSON value in `localStorage`: the next unlocked night, earned stars, and the mute setting.
+  - A win unlocks the next night and never moves progress backwards.
+  - Beating Night 5 earns a star.
+  - New Game resets the night to 1 but keeps stars.
+- **Validation.** `parseSave` accepts only a whole night from 1 to 5, 0–1 stars, and a true/false mute. Anything missing, corrupted, or out of range falls back to a fresh value. If the browser blocks storage (some private windows), the game plays without saving instead of failing.
+- **Title screen.**
+  - **Start Night 1** is now **New Game**.
+  - **Continue · Night N** appears once a later night is unlocked.
+  - Earned stars show under the title.
+  - The result text says when progress was saved or a star earned.
+- **Hooks in existing files:**
+  - `main.js`: saves each won night once (from either the live loop or a dev shortcut), and wires New Game, Continue, and the mute setting.
+  - `render.js`: shows Continue and the stars.
+  - `index.html` and `styles.css`: the Continue button and the star line.
+- **Tests.** Four save checks in a new `tests/save-tests.js`, which runs in the browser page alongside the engine tests:
+  - corrupted and out-of-range data
+  - win/star rules
+  - reload and New Game behavior
+  - blocked storage
+
+  One browser check wins nights, reloads the game frame, and confirms Continue, the star, remembered mute, New Game, and that a corrupted save is ignored.
+- **Test isolation.** While testing, I found that the original live-loop check (`?dev=1`) would have overwritten a real save when it clicked New Game. Every `?dev=1` page now saves under a separate key. The new save check also runs after the main-frame checks, because reloading its own frame takes focus away from the main game frame.
+
 ## Known limitations and next task
 
-- Nights 1–5 exist, but progress is not saved yet: returning to the menu or refreshing starts again at Night 1. There is no Continue, Night 6, stars, Custom Night, or Golden Freddy.
+- Nights 1–5 and one star exist. There is no Night 6, Custom Night, second or third star, Golden Freddy, or 6 AM transition scene. Saves live in this browser's local storage only; a private window or cleared site data starts fresh.
 - Sound is synthesized and approximate. There is no phone call, voice, outage music box, or volume slider, and mute is not remembered after a refresh. CAM 6 is explicitly AUDIO ONLY: kitchen clatter plays alongside the textual quiet/clatter cues, and no kitchen picture is shown.
 - Fixed office view; no mouse panning or animated jumpscares. Supplied close-up artwork appears behind the loss screen when available.
 - Camera character portraits are reusable position markers rather than perspective-matched room sprites. Missing art remains explicitly temporary. Doorway labels keep unfinished Freddy/Foxy office artwork testable.
 - Small portrait screens fit the scene but have compact controls; landscape is recommended. Device/browser coverage beyond the verified local Chrome run remains future work.
 - The original [Game Spec.docx](Game%20Spec.docx), [implementation plan](IMPLEMENTATION_PLAN.md), and artwork inventory describe broader future work. Their unchecked future features should not be read as implemented.
 
-**Next concrete task:** Night 1 tuning, sound, and Nights 2–5 are done (see Phase 2 changes). Next, save the next unlocked night and earned stars locally (a validated `src/save.js`, as the implementation plan proposes). Then add New Game and Continue to the title screen and award a star for beating Night 5.
+**Next concrete task:** Phase 4 of the implementation plan is done (see Phase 2 changes). Next is Phase 5: unlock Night 6 after Night 5 by adding a sixth `NIGHTS` row, and award a second star for it. Raise `MAX_STARS` in `src/save.js` to match. Then add Custom Night.

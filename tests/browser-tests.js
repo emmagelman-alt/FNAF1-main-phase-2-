@@ -1,8 +1,10 @@
 import { runEngineTests } from './engine-tests.js';
+import { runSaveTests } from './save-tests.js';
 import { CAMERAS } from '../src/config.js';
 import { verifyArtwork } from './artwork-checks.js';
+import { SAVE_KEYS } from '../src/save.js';
 
-const results = runEngineTests();
+const results = [...runEngineTests(), ...runSaveTests()];
 const frame = document.getElementById('game-frame');
 await new Promise(resolve => { if (frame.contentWindow.nightDebug) resolve(); else frame.addEventListener('load', resolve, { once: true }); });
 const win = frame.contentWindow;
@@ -212,6 +214,41 @@ await test('Sound waits for Start, follows game events, stops at the menu, and M
     d.getElementById('result-menu').click(); assert(!api.sound().running, 'Sound kept running at the menu');
   } finally { quiet.remove(); }
 });
+await test('Wins save progress, Continue survives a refresh, New Game keeps stars, and a bad save starts fresh', async () => {
+  localStorage.removeItem(SAVE_KEYS.dev);
+  const saved = document.createElement('iframe');
+  saved.title = 'Save and Continue test'; saved.style.display = 'none';
+  saved.src = '../?dev=1&manual=1&noart=1';
+  const loaded = () => new Promise(resolve => saved.addEventListener('load', resolve, { once: true }));
+  let first = loaded(); document.body.append(saved); await first;
+  const d = () => saved.contentDocument; const api = () => saved.contentWindow.nightDebug;
+  const reload = async () => { const next = loaded(); saved.contentWindow.location.reload(); await next; };
+  const press = value => d().dispatchEvent(new saved.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true }));
+  const winNight = () => { api().nearDawn(); api().advance(5); assert(api().snapshot().mode === 'won'); };
+  try {
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').hidden, 'Fresh save showed progress');
+    d().getElementById('start').click(); winNight(); d().getElementById('retry').click(); winNight();
+    await reload();
+    assert(!d().getElementById('continue').hidden && d().getElementById('continue').textContent === 'Continue · Night 3', 'Continue did not survive a refresh');
+    d().getElementById('continue').click(); assert(api().snapshot().night === 3);
+    api().night(5); winNight(); assert(d().getElementById('result-description').textContent.includes('earned a star'));
+    await reload();
+    assert(d().getElementById('stars').textContent === '★' && d().getElementById('continue').textContent === 'Continue · Night 5');
+    press('m'); await reload();
+    assert(api().sound().muted && d().getElementById('mute-button').textContent === 'Unmute [M]', 'Mute was not remembered');
+    press('m');
+    d().getElementById('start').click(); await reload();
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').textContent === '★', 'New Game did not reset the night but keep the star');
+    localStorage.setItem(SAVE_KEYS.dev, '{"night":"9","stars":-4');
+    await reload();
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').hidden, 'Corrupted save was trusted');
+    d().getElementById('start').click(); assert(api().snapshot().night === 1 && api().snapshot().mode === 'playing');
+  } finally {
+    saved.remove(); localStorage.removeItem(SAVE_KEYS.dev);
+    // Starting a night in the extra frame takes focus; let the main game frame resume.
+    win.dispatchEvent(new win.Event('focus'));
+  }
+});
 await verifyArtwork({ frame, win, doc, debug, click, start, test, assert });
 await test('16:9 game area fits narrow and wide windows without horizontal overflow', async () => {
   for (const width of [390, 1280]) {
@@ -238,3 +275,5 @@ document.title = `${failed.length ? 'FAIL' : 'PASS'} · Night 1 browser regressi
 window.testResults = results;
 // Leave the embedded game at the title, with no old animation loop running.
 click('menu-button');
+// Test frames save under the development key; leave it empty for the next run.
+localStorage.removeItem(SAVE_KEYS.dev);

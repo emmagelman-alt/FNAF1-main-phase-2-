@@ -2,6 +2,7 @@ import { CONFIG, CAMERAS, NIGHTS, configForNight } from './config.js';
 import { createState, advance, act, startOutage, notify } from './engine.js';
 import { createRenderer } from './render.js';
 import { createAudio } from './audio.js';
+import { createSave, SAVE_KEYS } from './save.js';
 
 const params = new URLSearchParams(location.search);
 const dev = params.get('dev') === '1';
@@ -20,7 +21,14 @@ const heldLights = new Set();
 const render = createRenderer(() => paint(), CONFIG, { forcePlaceholders: dev && params.get('noart') === '1' });
 // The regression page records sound cues without playing them.
 const sound = createAudio(CONFIG, { silent: manual });
-function paint() { render(state, { dev, speed, muted: sound.muted }); sound.update(state); }
+const save = createSave(dev ? SAVE_KEYS.dev : SAVE_KEYS.play);
+if (save.get().muted) sound.toggleMute();
+let savedWin = null;
+function paint() {
+  // Record each won night once, whether the live loop or a dev shortcut finished it.
+  if (state.mode === 'won' && savedWin !== state) { savedWin = state; save.win(state.night); }
+  render(state, { dev, speed, muted: sound.muted, progress: save.get() }); sound.update(state);
+}
 
 function stopLoop() {
   if (frameId !== null) cancelAnimationFrame(frameId);
@@ -60,7 +68,8 @@ function startNight(night = 1) {
 }
 function menu() {
   stopLoop(); heldLights.clear(); state = createState(); paint();
-  document.getElementById('start').focus({ preventScroll: true });
+  const resume = document.getElementById('continue');
+  (resume.hidden ? document.getElementById('start') : resume).focus({ preventScroll: true });
 }
 function pause(toggle = true) {
   if (state.mode !== 'playing') return;
@@ -69,9 +78,10 @@ function pause(toggle = true) {
 }
 function action(value) { act(state, value); paint(); }
 function cycleSpeed() { speed = speed === 1 ? 4 : speed === 4 ? 12 : 1; lastTime = performance.now(); paint(); }
-function toggleMute() { sound.toggleMute(); paint(); }
+function toggleMute() { sound.toggleMute(); save.setMuted(sound.muted); paint(); }
 
-document.getElementById('start').addEventListener('click', () => startNight(1));
+document.getElementById('start').addEventListener('click', () => { save.newGame(); startNight(1); });
+document.getElementById('continue').addEventListener('click', () => startNight(save.get().night));
 // After a win the result button starts the next night; after a loss it retries the same one.
 document.getElementById('retry').addEventListener('click', () =>
   startNight(state.mode === 'won' ? Math.min(state.night + 1, NIGHTS.length) : state.night));
