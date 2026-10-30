@@ -103,6 +103,23 @@ await test('6 AM win during outage, replay reset, and return to menu', () => {
   click('retry'); assert(debug.snapshot().elapsed === 0 && debug.snapshot().power === 100);
   key('Escape'); debug.advance(400); assert(debug.snapshot().mode === 'menu' && !doc.getElementById('menu').hidden);
 });
+await test('A win starts the next, harder night; a loss retries the same night; Night 5 is the last', () => {
+  const night = () => debug.snapshot().night;
+  start(); assert(night() === 1 && doc.getElementById('hud-night').textContent === '1');
+  debug.nearDawn(); debug.advance(5);
+  assert(doc.getElementById('retry').textContent.includes('Start Night 2'), 'Win did not offer Night 2');
+  click('retry'); assert(night() === 2 && debug.snapshot().elapsed === 0 && doc.getElementById('hud-night').textContent === '2');
+  debug.threat(); debug.advance(7); assert(debug.snapshot().mode === 'lost');
+  assert(doc.getElementById('retry').textContent.includes('Retry Night 2')); click('retry'); assert(night() === 2);
+  // Bonnie waits 7 s at the door on Night 1 but under 5 s on Night 5.
+  debug.night(5); assert(doc.getElementById('terminal-night').textContent === '// 05');
+  debug.threat(); debug.advance(5); assert(debug.snapshot().outcome?.cause === 'bonnie', 'Night 5 used Night 1 timing');
+  click('retry'); debug.nearDawn(); debug.advance(5);
+  assert(doc.getElementById('result-description').textContent.includes('all five nights') && doc.getElementById('retry').textContent.includes('Play Night 5 again'));
+  click('retry'); assert(night() === 5);
+  key('Escape'); start(); assert(night() === 1, 'Menu start did not begin Night 1');
+  key('Escape');
+});
 await test('Manual pause freezes the simulation; resume restores inputs', () => {
   start(); key('p'); const before = JSON.stringify(debug.snapshot()); debug.advance(30);
   assert(before === JSON.stringify(debug.snapshot()) && !doc.getElementById('pause-overlay').hidden);

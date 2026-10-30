@@ -1,6 +1,6 @@
 import { ASSETS, GAMEPLAY_IMAGE_PATHS } from './asset-paths.js';
 import { cameraPlacement } from './art-layout.js';
-import { CONFIG, CAMERAS } from './config.js';
+import { CONFIG, CAMERAS, NIGHTS } from './config.js';
 import { roomOf, usage } from './engine.js';
 
 // Missing files are optional. Cache each result and render a named fallback.
@@ -160,6 +160,7 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
     text('pause-description', state.hidden ? 'Your shift pauses while this tab or window is inactive.' : 'Time, enemies, and power are paused.');
     text('pause-button', state.paused ? 'Resume [P]' : 'Pause [P]');
     text('mute-button', muted ? 'Unmute [M]' : 'Mute [M]');
+    text('terminal-night', `// ${String(state.night).padStart(2, '0')}`);
     els['mute-button'].setAttribute('aria-pressed', String(muted));
     text('dev-speed', `Speed: ${speed}×`);
     for (const id of ['dev-advance', 'dev-threat', 'dev-outage', 'dev-dawn']) els[id].disabled = !playing || state.paused || state.hidden;
@@ -172,6 +173,7 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
       text('power-status', state.outage ? 'EMERGENCY POWER FAILURE' : 'SYSTEMS ONLINE');
       const hour = Math.floor(state.elapsed / config.nightDuration * 6);
       text('clock', `${hour === 0 ? 12 : hour} AM`);
+      text('hud-night', String(state.night));
       const time = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
       text('shift-progress', `${time(state.elapsed)} / ${time(config.nightDuration)}`);
       text('power-value', `${Math.ceil(state.power)}%`);
@@ -203,15 +205,17 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
       els.activity.dataset.tone = sprinting ? 'danger' : event.tone;
     } else if (state.outcome) {
       const won = state.mode === 'won';
+      const night = state.night;
+      const finalNight = night >= NIGHTS.length;
       const cause = state.outcome.cause;
       const name = cause === 'outage' ? 'The power failed' : config.enemies[cause]?.name;
       els.result.classList.toggle('loss', !won);
       text('result-kicker', won ? 'SHIFT COMPLETE / YOU MADE IT' : 'SHIFT TERMINATED / SIGNAL LOST');
       text('result-title', won ? '6:00 AM' : 'Caught in the dark.');
-      text('result-description', won ? 'The morning crew has arrived. You survived Night 1.' : cause === 'outage' ? 'The power failed, and something found you before dawn. Conserve devices to keep the office online.' : `${name} reached the office through the ${config.enemies[cause]?.side} doorway. Close that door and hold it until the threat retreats.`);
+      text('result-description', won ? `The morning crew has arrived. ${finalNight ? 'You survived all five nights.' : `You survived Night ${night}.`}` : cause === 'outage' ? 'The power failed, and something found you before dawn. Conserve devices to keep the office online.' : `${name} reached the office through the ${config.enemies[cause]?.side} doorway. Close that door and hold it until the threat retreats.`);
       art('loss-art', ASSETS.jumpscares[cause === 'outage' ? 'freddy' : cause], !won);
-      text('retry', won ? 'Play Night 1 again ↗' : 'Retry Night 1 ↗');
-      text('activity', won ? 'Night 1 complete. Replay the shift or return to the menu.' : 'Night ended. Retry starts a completely fresh shift.');
+      text('retry', !won ? `Retry Night ${night} ↗` : finalNight ? `Play Night ${night} again ↗` : `Start Night ${night + 1} ↗`);
+      text('activity', !won ? 'Night ended. Retry starts a completely fresh shift.' : finalNight ? 'All five nights complete. Replay Night 5 or return to the menu.' : `Night ${night} complete. The next night is harder.`);
       els.activity.dataset.tone = won ? 'safe' : 'danger';
     } else {
       text('activity', 'Welcome to the night shift. Check your instructions before clocking in.');

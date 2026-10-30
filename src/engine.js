@@ -1,8 +1,8 @@
 import { CONFIG, CAMERAS } from './config.js';
 
-export function createState(config = CONFIG, mode = 'menu') {
+export function createState(config = CONFIG, mode = 'menu', night = 1) {
   return {
-    mode, night: 1, elapsed: 0, power: config.startingPower,
+    mode, night, elapsed: 0, power: config.startingPower,
     doors: { left: false, right: false }, lights: { left: false, right: false },
     monitor: false, camera: '1A', paused: false, hidden: false,
     outage: false, outageRemaining: null, outcome: null,

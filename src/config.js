@@ -47,3 +47,29 @@ export const CONFIG = {
     },
   },
 };
+
+// Nights 2–5 scale Night 1's timing; routes, names, and device costs never change.
+// Below 1: earlier starts, faster moves, shorter doorway/sprint warnings. Above 1: faster
+// Foxy and more base power drain.
+export const NIGHTS = [
+  { start: 1, move: 1, warning: 1, foxy: 1, drain: 1 },
+  { start: 0.85, move: 0.9, warning: 0.92, foxy: 1.15, drain: 1.05 },
+  { start: 0.7, move: 0.8, warning: 0.85, foxy: 1.3, drain: 1.1 },
+  { start: 0.55, move: 0.72, warning: 0.75, foxy: 1.45, drain: 1.15 },
+  { start: 0.45, move: 0.65, warning: 0.66, foxy: 1.6, drain: 1.2 },
+];
+
+export function configForNight(night = 1) {
+  const index = Math.min(Math.max(Math.trunc(night) || 1, 1), NIGHTS.length) - 1;
+  const scale = NIGHTS[index];
+  const config = structuredClone(CONFIG);
+  config.power.base *= scale.drain;
+  for (const rule of Object.values(config.enemies)) {
+    rule.startAt *= scale.start;
+    rule.attackDelay *= scale.warning;
+    if (rule.moveInterval) rule.moveInterval = rule.moveInterval.map(seconds => seconds * scale.move);
+    if (rule.sprintDelay) rule.sprintDelay *= scale.warning;
+    if (rule.progressionPerSecond) rule.progressionPerSecond *= scale.foxy;
+  }
+  return config;
+}
