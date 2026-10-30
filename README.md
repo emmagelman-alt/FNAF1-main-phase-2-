@@ -25,8 +25,11 @@ The game fits its complete scene into a responsive 16:9 area. A wide window or l
 | Pause / resume | Click Pause / Resume | P |
 | Return to title | Click Menu | Esc |
 | Retry / replay Night 1 | Click the result-screen button | Tab to the button, then Enter |
+| Mute / unmute sound | Click Mute below the game | M (works on every screen) |
 
 Camera keys: **1 → 1A**, **2 → 1B**, **3 → 1C**, **4 → 2A**, **5 → 2B**, **6 → 3**, **7 → 4A**, **8 → 4B**, **9 → 5**, **0 → 6**, **− → 7**. Camera selection works while the monitor is open. Door and light controls remain available while viewing cameras. Held keyboard lights release on keyup, window blur, pause, or tab hiding. Click-toggled lights remain on until toggled off or power fails.
+
+Sound starts when you click **Start Night 1**, because browsers block audio until the player interacts with the page. It goes silent while paused, while the tab is hidden, and on the title screen.
 
 ## How Night 1 works
 
@@ -38,6 +41,7 @@ Camera keys: **1 → 1A**, **2 → 1B**, **3 → 1C**, **4 → 2A**, **5 → 2B*
 - Base drain is **0.14 power points/second**. Each closed door adds **0.22**, each light **0.13**, and the monitor **0.10**. All add together. Keeping both doors shut throughout the night will exhaust power.
 - Zero power opens both doors and disables lights and cameras. Other enemy attacks stop and an **18-second outage attack** begins. You can still win if dawn arrives first. Reaching 6 AM wins a simultaneous tie with a new attack.
 - Loss, win, retry, and menu transitions resolve once. Each retry starts with full power, midnight, open doors, lights and monitor off, fresh enemy timers, and no old outcome. There are no per-enemy browser timers to leak between runs.
+- Listen as well as look. Footsteps get louder and pan toward a side as an enemy approaches it. Kitchen clatter means someone is in CAM 6 (louder while you view that feed). Running feet mean Foxy is sprinting, and banging on the west door means you blocked him. The jumpscare sound ends a lost night; six chimes mark 6 AM.
 - Switching away from the browser tab or window pauses time, power drain, and enemies. Returning resumes automatically with a new timing baseline. P provides a separate manual pause that stays paused across tab changes.
 
 These are readable, configurable approximations of FNAF 1 mechanics, not a reproduction of its exact AI. The mask, music box, and hallway flashlight from the mixed original spec are intentionally excluded from this version.
@@ -52,6 +56,7 @@ Open [http://localhost:8000/?dev=1](http://localhost:8000/?dev=1). The developme
 - **Drain power** starts an actual outage; it does not instantly lose.
 - **5 seconds to dawn** moves the clock near 6 AM. Combine with Drain power to verify winning during an outage.
 - Append **&noart=1** to the development URL to force every artwork fallback without changing any image files.
+- `nightDebug.sound()` reports whether sound is unlocked, running, or muted, plus the most recent cue names. The regression page's `manual=1` mode records cues without playing them, so running the tests is silent.
 
 The normal URL does not expose development controls or `window.nightDebug`. The regression iframe additionally uses `?dev=1&manual=1` to disable automatic advancement and drive exact elapsed-time steps. Do not use `manual=1` for normal play.
 
@@ -59,7 +64,7 @@ Run the repeatable checks by opening [http://localhost:8000/tests/browser-tests.
 
 Verified locally in Chrome on **2026-10-28: 32/32 checks passed**, including the live animation loop, visibility/focus pause, all-artwork fallbacks, overlapping doorway threats, and Foxy's full-frame sprint artwork. All 33 files in the current asset manifest matched their recorded checksums. The title and office were also inspected visually in the browser. Run the regression page above to repeat the checks.
 
-Re-run in Chrome on **2026-10-30 after the Phase 2 Night 1 tuning: 37/38 browser checks and 16/16 engine checks passed.** The regression page now has 38 checks. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
+Re-run in Chrome on **2026-10-30 after the Phase 2 tuning and sound work: 38/39 browser checks and 16/16 engine checks passed.** The regression page now has 39 checks, including a new sound check. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
 
 ## Code and artwork integration
 
@@ -70,6 +75,7 @@ Re-run in Chrome on **2026-10-30 after the Phase 2 Night 1 tuning: 37/38 browser
 | `src/engine.js` | State creation, elapsed-time simulation, devices, enemies, outcomes; no DOM |
 | `src/config.js` | All night/power/AI tuning, enemy routes, and camera definitions |
 | `src/render.js` | Asset loading and state-to-DOM rendering; no simulation changes |
+| `src/audio.js` | Synthesized sound cues derived from state changes; no simulation changes (added in Phase 2) |
 | `src/asset-paths.js` | **All gameplay image paths**, including planned artwork filenames |
 
 The code uses the exact supplied camera paths from [the manifest](assets/asset-manifest.json) and the planned destinations in [ASSETS.md](ASSETS.md). The original office and title screenshots with baked-in UI are retained but unused. Add artwork at its configured path and refresh; no code edit is required. Missing images show labeled temporary backgrounds or threat indicators and do not block gameplay. The loader warns once per missing optional path; the browser may also log its expected 404. A failed image is retried on the next page load.
@@ -105,13 +111,40 @@ An ignored Foxy can still sprint while Chica is at the right door, which forces 
 
 Night 1 remains deliberately forgiving. Difficulty is meant to rise with Nights 2–5.
 
+### Sound and mute (new `src/audio.js`)
+
+The previous handoff asked for "original audio cues and a mute control." The implementation plan had already proposed a separate `src/audio.js`, and the sound follows the existing split between modules:
+
+- **Same pattern as `render.js`.** `createAudio(config, options)` mirrors `createRenderer(...)`. It only reads game state. Each time `main.js` paints, it compares the new state with the previous one and plays cues for what changed. `engine.js` is untouched and still has no browser code.
+- **Every sound is synthesized** with the Web Audio API: noise bursts and oscillators, with no audio files. That keeps the "no external requests" promise and needs no licenses. The sounds are original approximations of the FNAF atmosphere, not recordings from the game.
+- **Cues:**
+  - office hum (stops during an outage)
+  - door thunks and light clicks, panned to their side, plus a buzz while a light is on
+  - monitor and camera-switch static
+  - footsteps that grow louder and pan as enemies approach
+  - kitchen clatter while CAM 6 is occupied
+  - Pirate Cove curtain rustle
+  - Foxy's running feet and door banging
+  - power-down
+  - jumpscare
+  - six 6 AM chimes
+- **Lifecycle.** Sound unlocks only from Start or Retry. It suspends while paused, while the tab is hidden, and at the menu. Starting a new run or returning to the menu cuts off any leftover jumpscare or chime.
+- **Mute.** M or the Mute button below the game works on every screen, including the title.
+
+Small hooks were added to the original files:
+- `main.js`: create and unlock the audio, call it from `paint()`, handle the M key and Mute button, and add `nightDebug.sound()`.
+- `render.js`: the Mute/Unmute label.
+- `index.html`: the button and the shift-briefing text, which used to say the game is silent.
+
+The regression page gained one check covering the sound lifecycle and cues. Loudness was also measured in Chrome by routing the game's output into an analyser instead of the speakers. Doors, Foxy's banging, and nearby footsteps all stand out above the office hum, and the jumpscare is the loudest cue. Listening on real speakers is still worthwhile; volume balance is a judgment call.
+
 ## Known limitations and next task
 
 - Only Night 1 exists. No Continue, saving, other nights, unlocks, stars, Custom Night, or Golden Freddy.
-- Silent prototype: no ambience, phone call, footsteps, kitchen audio, or jumpscare sound. CAM 6 is explicitly AUDIO ONLY with textual quiet/clatter cues; no kitchen picture is shown.
+- Sound is synthesized and approximate. There is no phone call, voice, outage music box, or volume slider, and mute is not remembered after a refresh. CAM 6 is explicitly AUDIO ONLY: kitchen clatter plays alongside the textual quiet/clatter cues, and no kitchen picture is shown.
 - Fixed office view; no mouse panning or animated jumpscares. Supplied close-up artwork appears behind the loss screen when available.
 - Camera character portraits are reusable position markers rather than perspective-matched room sprites. Missing art remains explicitly temporary. Doorway labels keep unfinished Freddy/Foxy office artwork testable.
 - Small portrait screens fit the scene but have compact controls; landscape is recommended. Device/browser coverage beyond the verified local Chrome run remains future work.
 - The original [Game Spec.docx](Game%20Spec.docx), [implementation plan](IMPLEMENTATION_PLAN.md), and artwork inventory describe broader future work. Their unchecked future features should not be read as implemented.
 
-**Next concrete task:** Night 1 tuning is done (see Phase 2 changes). Add original audio cues and a mute control before expanding to Night 2.
+**Next concrete task:** Night 1 tuning and sound are done (see Phase 2 changes). Next, configure Nights 2–5 with faster movement and shorter reaction windows, keeping Night 1's values unchanged. Then add saving and Continue (Phase 4 of the implementation plan).

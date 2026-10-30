@@ -1,6 +1,7 @@
 import { CONFIG, CAMERAS } from './config.js';
 import { createState, advance, act, startOutage, notify } from './engine.js';
 import { createRenderer } from './render.js';
+import { createAudio } from './audio.js';
 
 const params = new URLSearchParams(location.search);
 const dev = params.get('dev') === '1';
@@ -14,7 +15,9 @@ let lastRender = 0;
 let windowBlurred = false;
 const heldLights = new Set();
 const render = createRenderer(() => paint(), CONFIG, { forcePlaceholders: dev && params.get('noart') === '1' });
-function paint() { render(state, { dev, speed }); }
+// The regression page records sound cues without playing them.
+const sound = createAudio(CONFIG, { silent: manual });
+function paint() { render(state, { dev, speed, muted: sound.muted }); sound.update(state); }
 
 function stopLoop() {
   if (frameId !== null) cancelAnimationFrame(frameId);
@@ -44,7 +47,7 @@ function releaseLights() {
   heldLights.clear();
 }
 function startNight() {
-  stopLoop(); heldLights.clear();
+  sound.unlock(); stopLoop(); heldLights.clear();
   state = createState(CONFIG, 'playing');
   state.hidden = document.hidden || windowBlurred;
   // Accelerated time is a session setting and deliberately survives retries.
@@ -62,12 +65,14 @@ function pause(toggle = true) {
 }
 function action(value) { act(state, value); paint(); }
 function cycleSpeed() { speed = speed === 1 ? 4 : speed === 4 ? 12 : 1; lastTime = performance.now(); paint(); }
+function toggleMute() { sound.toggleMute(); paint(); }
 
 document.getElementById('start').addEventListener('click', startNight);
 document.getElementById('retry').addEventListener('click', startNight);
 for (const id of ['result-menu', 'menu-button']) document.getElementById(id).addEventListener('click', menu);
 document.getElementById('pause-button').addEventListener('click', () => pause());
 document.getElementById('resume').addEventListener('click', () => pause(false));
+document.getElementById('mute-button').addEventListener('click', toggleMute);
 document.getElementById('monitor-toggle').addEventListener('click', () => action({ type: 'monitor' }));
 for (const side of ['left', 'right']) {
   document.getElementById(`${side}-door`).addEventListener('click', () => action({ type: 'door', side }));
@@ -82,6 +87,8 @@ document.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
   const key = event.key.toLowerCase();
   if (dev && event.shiftKey && key === 'f' && !event.repeat) { event.preventDefault(); cycleSpeed(); return; }
+  // Mute works on every screen, including the title.
+  if (key === 'm' && !event.repeat) { toggleMute(); return; }
   if (state.mode !== 'playing') return;
   if ([' ', 's', 'a', 'd', 'q', 'e', 'p', 'escape', ...CAMERAS.map(c => c.key)].includes(key)) event.preventDefault();
   if (event.repeat) return;
@@ -121,6 +128,7 @@ window.addEventListener('pageshow', () => { state.hidden = document.hidden || wi
 if (dev) {
   const debug = {
     snapshot: () => structuredClone(state),
+    sound: () => sound.status(),
     advance: seconds => { advance(state, seconds); paint(); if (state.mode !== 'playing') stopLoop(); lastTime = performance.now(); },
     power: amount => { if (state.mode !== 'playing') return; state.power = Math.max(0, Math.min(100, amount)); if (state.power === 0) startOutage(state); paint(); },
     nearDawn: () => { if (state.mode !== 'playing') return; state.elapsed = CONFIG.nightDuration - 5; notify(state, 'Development shortcut: five seconds until dawn.'); paint(); },

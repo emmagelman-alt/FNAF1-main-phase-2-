@@ -151,7 +151,7 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
     renderEnemyMarkers(state);
   }
 
-  return function render(state, { dev = false, speed = 1 } = {}) {
+  return function render(state, { dev = false, speed = 1, muted = false } = {}) {
     const playing = state.mode === 'playing';
     show('menu', state.mode === 'menu'); show('play', playing); show('result', ['won', 'lost'].includes(state.mode));
     show('menu-button', playing); show('pause-button', playing); show('dev-panel', dev);
@@ -159,6 +159,8 @@ export function createRenderer(onAssetChange, config = CONFIG, { forcePlaceholde
     show('resume', !state.hidden);
     text('pause-description', state.hidden ? 'Your shift pauses while this tab or window is inactive.' : 'Time, enemies, and power are paused.');
     text('pause-button', state.paused ? 'Resume [P]' : 'Pause [P]');
+    text('mute-button', muted ? 'Unmute [M]' : 'Mute [M]');
+    els['mute-button'].setAttribute('aria-pressed', String(muted));
     text('dev-speed', `Speed: ${speed}×`);
     for (const id of ['dev-advance', 'dev-threat', 'dev-outage', 'dev-dawn']) els[id].disabled = !playing || state.paused || state.hidden;
 

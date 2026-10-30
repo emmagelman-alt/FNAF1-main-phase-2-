@@ -170,6 +170,31 @@ await test('Live animation loop pauses without catch-up and retry cancels the ol
     assert(api.snapshot().elapsed < 0.02 && api.snapshot().power > 99.99 && JSON.stringify(api.snapshot()) === reset, 'Old run leaked into fresh paused state');
   } finally { delete d.hidden; live.remove(); }
 });
+await test('Sound waits for Start, follows game events, stops at the menu, and M or the button mutes it', async () => {
+  const quiet = document.createElement('iframe');
+  quiet.title = 'Sound lifecycle test'; quiet.style.display = 'none';
+  quiet.src = '../?dev=1&manual=1&noart=1';
+  const loaded = new Promise(resolve => quiet.addEventListener('load', resolve, { once: true }));
+  document.body.append(quiet); await loaded;
+  try {
+    const d = quiet.contentDocument; const w = quiet.contentWindow; const api = w.nightDebug;
+    const press = value => d.dispatchEvent(new w.KeyboardEvent('keydown', { key: value, bubbles: true }));
+    const heard = (...cues) => cues.every(cue => api.sound().recent.includes(cue));
+    assert(!api.sound().ready && !api.sound().running, 'Sound unlocked before Start');
+    press('m'); assert(api.sound().muted && d.getElementById('mute-button').getAttribute('aria-pressed') === 'true', 'M did not mute on the title');
+    d.getElementById('mute-button').click(); assert(!api.sound().muted && d.getElementById('mute-button').textContent === 'Mute [M]', 'Button did not unmute');
+    d.getElementById('start').click(); assert(api.sound().ready && api.sound().running, 'Start did not unlock sound');
+    d.getElementById('left-door').click(); d.getElementById('right-light').click();
+    d.getElementById('monitor-toggle').click(); d.querySelector('[data-camera="1C"]').click();
+    assert(heard('door', 'click', 'monitor', 'static'), `Device cues missing: ${api.sound().recent}`);
+    api.threat('chica', '6'); assert(heard('steps', 'clatter'), `Movement cues missing: ${api.sound().recent}`);
+    press('p'); assert(!api.sound().running, 'Sound kept running while paused'); press('p'); assert(api.sound().running);
+    api.threat('foxy', '2A'); api.advance(6); assert(heard('run', 'bang'), `Foxy cues missing: ${api.sound().recent}`);
+    api.power(0); assert(heard('powerDown'));
+    api.advance(19); assert(api.snapshot().mode === 'lost' && api.sound().recent.at(-1) === 'jumpscare', 'No jumpscare on loss');
+    d.getElementById('result-menu').click(); assert(!api.sound().running, 'Sound kept running at the menu');
+  } finally { quiet.remove(); }
+});
 await verifyArtwork({ frame, win, doc, debug, click, start, test, assert });
 await test('16:9 game area fits narrow and wide windows without horizontal overflow', async () => {
   for (const width of [390, 1280]) {
