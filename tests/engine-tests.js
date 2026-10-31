@@ -1,4 +1,4 @@
-import { CONFIG } from '../src/config.js';
+import { CONFIG, NIGHTS, configForNight } from '../src/config.js';
 import { createState, advance, act, drainRate, startOutage, roomOf, finish } from '../src/engine.js';
 
 export function runEngineTests() {
@@ -130,6 +130,32 @@ export function runEngineTests() {
     s.enemies.chica.blockedFor = 2; s.doors.right = true; step(s, 1.1, config);
     assert(roomOf(s.enemies.chica, config) !== 'door' && roomOf(s.enemies.freddy, config) === 'door');
     assert(s.events.at(-1).text.includes('keep this door closed'));
+  });
+  test('Night 1 keeps its tuning and each later night is at least as hard', () => {
+    const before = JSON.stringify(CONFIG);
+    assert(JSON.stringify(configForNight(1)) === before, 'Night 1 differs from CONFIG');
+    for (let night = 2; night <= NIGHTS.length; night++) {
+      const easier = configForNight(night - 1); const harder = configForNight(night);
+      assert(harder.power.base >= easier.power.base && harder.nightDuration === easier.nightDuration);
+      for (const [id, rule] of Object.entries(harder.enemies)) {
+        const prev = easier.enemies[id];
+        assert(rule.startAt <= prev.startAt && rule.attackDelay <= prev.attackDelay, `${id} got easier on night ${night}`);
+        assert(JSON.stringify(rule.route) === JSON.stringify(prev.route) && rule.side === prev.side, `${id} route changed`);
+        if (rule.moveInterval) assert(rule.moveInterval[0] <= prev.moveInterval[0] && rule.moveInterval[1] <= prev.moveInterval[1]);
+        if (rule.progressionPerSecond) assert(rule.progressionPerSecond >= prev.progressionPerSecond && rule.sprintDelay <= prev.sprintDelay);
+      }
+    }
+    assert(JSON.stringify(configForNight(0)) === before && JSON.stringify(configForNight(99)) === JSON.stringify(configForNight(NIGHTS.length)), 'Out-of-range nights not clamped');
+    assert(JSON.stringify(CONFIG) === before, 'configForNight changed the shared CONFIG');
+    assert(createState(configForNight(3), 'playing', 3).night === 3);
+  });
+  test('Night 5 is still survivable on power with prompt door defense', () => {
+    const config = configForNight(5); const s = createState(config, 'playing', 5);
+    for (let i = 0; i < 3601 && s.mode === 'playing'; i++) {
+      for (const side of ['left', 'right']) s.doors[side] = Object.values(s.enemies).some(e => roomOf(e, config) === 'door' && config.enemies[e.id].side === side);
+      step(s, 0.1, config);
+    }
+    assert(s.mode === 'won' && s.power > 0, `Ended ${s.mode}, power ${s.power}`);
   });
   return results;
 }

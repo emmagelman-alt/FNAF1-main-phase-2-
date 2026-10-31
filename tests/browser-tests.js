@@ -1,8 +1,10 @@
 import { runEngineTests } from './engine-tests.js';
+import { runSaveTests } from './save-tests.js';
 import { CAMERAS } from '../src/config.js';
 import { verifyArtwork } from './artwork-checks.js';
+import { SAVE_KEYS } from '../src/save.js';
 
-const results = runEngineTests();
+const results = [...runEngineTests(), ...runSaveTests()];
 const frame = document.getElementById('game-frame');
 await new Promise(resolve => { if (frame.contentWindow.nightDebug) resolve(); else frame.addEventListener('load', resolve, { once: true }); });
 const win = frame.contentWindow;
@@ -97,11 +99,29 @@ await test('Power outage disables devices before a delayed loss', () => {
   assert(doc.getElementById('left-door').disabled && doc.getElementById('monitor-toggle').disabled);
   debug.advance(10); assert(debug.snapshot().mode === 'playing'); debug.advance(9); assert(debug.snapshot().outcome.cause === 'outage');
 });
-await test('6 AM win during outage, replay reset, and return to menu', () => {
+// After a win the result button now starts the next night, so this checks that reset.
+await test('6 AM win during outage, next-night reset, and return to menu', () => {
   click('retry'); debug.nearDawn(); debug.power(0); debug.advance(5);
   assert(debug.snapshot().mode === 'won' && doc.getElementById('result-title').textContent === '6:00 AM');
-  click('retry'); assert(debug.snapshot().elapsed === 0 && debug.snapshot().power === 100);
+  click('retry'); assert(debug.snapshot().elapsed === 0 && debug.snapshot().power === 100 && debug.snapshot().night === 2);
   key('Escape'); debug.advance(400); assert(debug.snapshot().mode === 'menu' && !doc.getElementById('menu').hidden);
+});
+await test('A win starts the next, harder night; a loss retries the same night; Night 5 is the last', () => {
+  const night = () => debug.snapshot().night;
+  start(); assert(night() === 1 && doc.getElementById('hud-night').textContent === '1');
+  debug.nearDawn(); debug.advance(5);
+  assert(doc.getElementById('retry').textContent.includes('Start Night 2'), 'Win did not offer Night 2');
+  click('retry'); assert(night() === 2 && debug.snapshot().elapsed === 0 && doc.getElementById('hud-night').textContent === '2');
+  debug.threat(); debug.advance(7); assert(debug.snapshot().mode === 'lost');
+  assert(doc.getElementById('retry').textContent.includes('Retry Night 2')); click('retry'); assert(night() === 2);
+  // Bonnie waits 7 s at the door on Night 1 but under 5 s on Night 5.
+  debug.night(5); assert(doc.getElementById('terminal-night').textContent === '// 05');
+  debug.threat(); debug.advance(5); assert(debug.snapshot().outcome?.cause === 'bonnie', 'Night 5 used Night 1 timing');
+  click('retry'); debug.nearDawn(); debug.advance(5);
+  assert(doc.getElementById('result-description').textContent.includes('all five nights') && doc.getElementById('retry').textContent.includes('Play Night 5 again'));
+  click('retry'); assert(night() === 5 && debug.snapshot().elapsed === 0 && debug.snapshot().power === 100, 'Night 5 replay did not reset');
+  key('Escape'); start(); assert(night() === 1, 'Menu start did not begin Night 1');
+  key('Escape');
 });
 await test('Manual pause freezes the simulation; resume restores inputs', () => {
   start(); key('p'); const before = JSON.stringify(debug.snapshot()); debug.advance(30);
@@ -170,6 +190,66 @@ await test('Live animation loop pauses without catch-up and retry cancels the ol
     assert(api.snapshot().elapsed < 0.02 && api.snapshot().power > 99.99 && JSON.stringify(api.snapshot()) === reset, 'Old run leaked into fresh paused state');
   } finally { delete d.hidden; live.remove(); }
 });
+await test('Sound waits for Start, follows game events, stops at the menu, and M or the button mutes it', async () => {
+  const quiet = document.createElement('iframe');
+  quiet.title = 'Sound lifecycle test'; quiet.style.display = 'none';
+  quiet.src = '../?dev=1&manual=1&noart=1';
+  const loaded = new Promise(resolve => quiet.addEventListener('load', resolve, { once: true }));
+  document.body.append(quiet); await loaded;
+  try {
+    const d = quiet.contentDocument; const w = quiet.contentWindow; const api = w.nightDebug;
+    const press = value => d.dispatchEvent(new w.KeyboardEvent('keydown', { key: value, bubbles: true }));
+    const heard = (...cues) => cues.every(cue => api.sound().recent.includes(cue));
+    assert(!api.sound().ready && !api.sound().running, 'Sound unlocked before Start');
+    press('m'); assert(api.sound().muted && d.getElementById('mute-button').getAttribute('aria-pressed') === 'true', 'M did not mute on the title');
+    d.getElementById('mute-button').click(); assert(!api.sound().muted && d.getElementById('mute-button').textContent === 'Mute [M]', 'Button did not unmute');
+    d.getElementById('start').click(); assert(api.sound().ready && api.sound().running, 'Start did not unlock sound');
+    d.getElementById('left-door').click(); d.getElementById('right-light').click();
+    d.getElementById('monitor-toggle').click(); d.querySelector('[data-camera="1C"]').click();
+    assert(heard('door', 'click', 'monitor', 'static'), `Device cues missing: ${api.sound().recent}`);
+    api.threat('chica', '6'); assert(heard('steps', 'clatter'), `Movement cues missing: ${api.sound().recent}`);
+    press('p'); assert(!api.sound().running, 'Sound kept running while paused'); press('p'); assert(api.sound().running);
+    api.threat('foxy', '2A'); api.advance(6); assert(heard('run', 'bang'), `Foxy cues missing: ${api.sound().recent}`);
+    api.power(0); assert(heard('powerDown'));
+    api.advance(19); assert(api.snapshot().mode === 'lost' && api.sound().recent.at(-1) === 'jumpscare', 'No jumpscare on loss');
+    d.getElementById('result-menu').click(); assert(!api.sound().running, 'Sound kept running at the menu');
+  } finally { quiet.remove(); }
+});
+await test('Wins save progress, Continue survives a refresh, New Game keeps stars, and a bad save starts fresh', async () => {
+  localStorage.removeItem(SAVE_KEYS.dev);
+  const saved = document.createElement('iframe');
+  saved.title = 'Save and Continue test'; saved.style.display = 'none';
+  saved.src = '../?dev=1&manual=1&noart=1';
+  const loaded = () => new Promise(resolve => saved.addEventListener('load', resolve, { once: true }));
+  let first = loaded(); document.body.append(saved); await first;
+  const d = () => saved.contentDocument; const api = () => saved.contentWindow.nightDebug;
+  const reload = async () => { const next = loaded(); saved.contentWindow.location.reload(); await next; };
+  const press = value => d().dispatchEvent(new saved.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true }));
+  const winNight = () => { api().nearDawn(); api().advance(5); assert(api().snapshot().mode === 'won'); };
+  try {
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').hidden, 'Fresh save showed progress');
+    d().getElementById('start').click(); winNight(); d().getElementById('retry').click(); winNight();
+    await reload();
+    assert(!d().getElementById('continue').hidden && d().getElementById('continue').textContent === 'Continue · Night 3', 'Continue did not survive a refresh');
+    d().getElementById('continue').click(); assert(api().snapshot().night === 3);
+    api().night(5); winNight(); assert(d().getElementById('result-description').textContent.includes('earned a star'));
+    await reload();
+    assert(d().getElementById('stars').textContent === '★' && d().getElementById('continue').textContent === 'Continue · Night 5');
+    press('m'); await reload();
+    assert(api().sound().muted && d().getElementById('mute-button').textContent === 'Unmute [M]', 'Mute was not remembered');
+    press('m');
+    d().getElementById('start').click(); await reload();
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').textContent === '★', 'New Game did not reset the night but keep the star');
+    localStorage.setItem(SAVE_KEYS.dev, '{"night":"9","stars":-4');
+    await reload();
+    assert(d().getElementById('continue').hidden && d().getElementById('stars').hidden, 'Corrupted save was trusted');
+    d().getElementById('start').click(); assert(api().snapshot().night === 1 && api().snapshot().mode === 'playing');
+  } finally {
+    saved.remove(); localStorage.removeItem(SAVE_KEYS.dev);
+    // Starting a night in the extra frame takes focus; let the main game frame resume.
+    win.dispatchEvent(new win.Event('focus'));
+  }
+});
 await verifyArtwork({ frame, win, doc, debug, click, start, test, assert });
 await test('16:9 game area fits narrow and wide windows without horizontal overflow', async () => {
   for (const width of [390, 1280]) {
@@ -196,3 +276,5 @@ document.title = `${failed.length ? 'FAIL' : 'PASS'} · Night 1 browser regressi
 window.testResults = results;
 // Leave the embedded game at the title, with no old animation loop running.
 click('menu-button');
+// Test frames save under the development key; leave it empty for the next run.
+localStorage.removeItem(SAVE_KEYS.dev);

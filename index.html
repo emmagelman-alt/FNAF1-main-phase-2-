@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0e0e">
-  <title>Five Nights at Freddy’s · Night 1</title>
+  <title>Five Nights at Freddy’s</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,22 +12,23 @@
   <main class="terminal">
     <header class="terminal-header">
       <div class="brand"><span class="brand-mark" aria-hidden="true">F</span><div>FAZBEAR ENTERTAINMENT<small>SECURITY OPERATIONS / LOCAL TERMINAL</small></div></div>
-      <div class="connection"><span class="status-dot"></span> NIGHT SHIFT <span class="terminal-id">// 01</span></div>
+      <div class="connection"><span class="status-dot"></span> NIGHT SHIFT <span id="terminal-night" class="terminal-id">// 01</span></div>
     </header>
 
-    <div id="game" class="game" aria-label="Night 1 survival game">
+    <div id="game" class="game" aria-label="Night shift survival game">
       <section id="menu" class="screen menu-screen" aria-labelledby="game-title">
         <img id="title-art" class="scene-art" alt="" hidden>
         <div class="menu-shade"></div>
         <div class="menu-copy">
           <p class="eyebrow">HELP WANTED / NIGHT SECURITY</p>
           <h1 id="game-title">Five Nights<br><span>at Freddy’s</span></h1>
+          <p id="stars" class="menu-stars" hidden></p>
           <p class="menu-intro">The building is closed.<br>Your shift has just begun.</p>
-          <button id="start" class="primary-button">Start Night 1 <span aria-hidden="true">↗</span></button>
+          <div class="menu-actions"><button id="start" class="primary-button">New Game <span aria-hidden="true">↗</span></button><button id="continue" class="secondary-button" hidden>Continue</button></div>
           <p class="shift-note">12 AM — 6 AM <span>·</span> Survive a six-minute shift</p>
         </div>
         <div id="title-fallback" class="title-fallback" aria-hidden="true"><div class="radar"><i></i><i></i><i></i><b>01</b></div><span>TEMPORARY SECURITY DISPLAY<br>TITLE ART PENDING</span></div>
-        <div class="menu-footer"><span>FIRST PLAYABLE / NIGHT 1</span><span>KEEP AN EYE ON THE DOORS.</span></div>
+        <div class="menu-footer"><span>NIGHTS 1–5 / PROGRESS SAVES AFTER EACH WIN</span><span>KEEP AN EYE ON THE DOORS.</span></div>
       </section>
 
       <section id="play" class="screen" aria-label="Security office" hidden>
@@ -60,7 +61,7 @@
         <div id="hud" class="hud" aria-label="Night status">
           <div class="hud-location"><span id="view-label">OFFICE</span><small id="power-status">SYSTEMS ONLINE</small></div>
           <div class="hud-power"><div class="power-caption">POWER <strong id="power-value">100%</strong></div><div class="power-track"><div id="power-fill"></div></div><div class="usage-caption">USAGE <span id="usage-bars" aria-label="1 active power unit"></span></div></div>
-          <div class="hud-clock"><strong id="clock">12 AM</strong><span>NIGHT 1 <i>·</i> <span id="shift-progress">00:00 / 06:00</span></span></div>
+          <div class="hud-clock"><strong id="clock">12 AM</strong><span>NIGHT <span id="hud-night">1</span> <i>·</i> <span id="shift-progress">00:00 / 06:00</span></span></div>
         </div>
         <div id="outage-message" class="outage-message" hidden><p class="eyebrow">EMERGENCY / POWER FAILURE</p><h2>Stay very still.</h2><p>All devices are offline. Dawn may still reach you.</p></div>
         <div class="control-dock">
@@ -77,9 +78,9 @@
       <div id="pause-overlay" class="pause-overlay" hidden><p class="eyebrow">SHIFT SUSPENDED</p><h2>Night paused</h2><p id="pause-description">Your shift pauses while this tab is hidden.</p><button id="resume" class="primary-button">Resume shift</button></div>
     </div>
 
-    <div class="below-scene"><p id="activity" role="status" aria-live="polite">Welcome to the night shift. Check your instructions before clocking in.</p><div><button id="pause-button" class="text-button" hidden>Pause <kbd>P</kbd></button><button id="menu-button" class="text-button" hidden>Menu <kbd>ESC</kbd></button></div></div>
-    <details class="instructions"><summary>SHIFT BRIEFING <span>Controls & survival notes</span></summary><div class="briefing-grid"><div><h3>01 / Watch</h3><p>Raise the monitor with <kbd>Space</kbd> or <kbd>S</kbd>. Select a camera on the map or with <kbd>1–9</kbd>, <kbd>0</kbd>, <kbd>−</kbd>. CAM 6 is audio only.</p></div><div><h3>02 / Defend</h3><p><kbd>A</kbd> and <kbd>D</kbd> toggle left and right doors. Hold <kbd>Q</kbd> / <kbd>E</kbd> for doorway lights, or click to toggle them. Hold a door closed until a threat retreats.</p></div><div><h3>03 / Conserve</h3><p>Every device costs power. Use doors only when needed. At zero, everything opens and shuts down. Reach 6 AM before you are caught. <kbd>P</kbd> pauses; <kbd>Esc</kbd> returns to menu.</p></div></div><p class="briefing-note">Live nameplates mark actual enemies; room decoration is not a live threat. This first version is silent.</p></details>
-    <div id="dev-panel" class="dev-panel" hidden><strong>DEVELOPMENT</strong><button id="dev-speed">Speed: 1×</button><button id="dev-advance">+10 seconds</button><button id="dev-threat">Bonnie at left door</button><button id="dev-outage">Drain power</button><button id="dev-dawn">5 seconds to dawn</button><span>Shift+F cycles speed</span></div>
+    <div class="below-scene"><p id="activity" role="status" aria-live="polite">Welcome to the night shift. Check your instructions before clocking in.</p><div><button id="pause-button" class="text-button" hidden>Pause <kbd>P</kbd></button><button id="menu-button" class="text-button" hidden>Menu <kbd>ESC</kbd></button><button id="mute-button" class="text-button" aria-pressed="false">Mute <kbd>M</kbd></button></div></div>
+    <details class="instructions"><summary>SHIFT BRIEFING <span>Controls & survival notes</span></summary><div class="briefing-grid"><div><h3>01 / Watch</h3><p>Raise the monitor with <kbd>Space</kbd> or <kbd>S</kbd>. Select a camera on the map or with <kbd>1–9</kbd>, <kbd>0</kbd>, <kbd>−</kbd>. CAM 6 is audio only.</p></div><div><h3>02 / Defend</h3><p><kbd>A</kbd> and <kbd>D</kbd> toggle left and right doors. Hold <kbd>Q</kbd> / <kbd>E</kbd> for doorway lights, or click to toggle them. Hold a door closed until a threat retreats.</p></div><div><h3>03 / Conserve</h3><p>Every device costs power. Use doors only when needed. At zero, everything opens and shuts down. Reach 6 AM before you are caught. <kbd>P</kbd> pauses; <kbd>Esc</kbd> returns to menu; <kbd>M</kbd> mutes.</p></div></div><p class="briefing-note">Live nameplates mark actual enemies; room decoration is not a live threat. Sound starts with your shift. Listen for footsteps, kitchen clatter, and banging on the west door.</p></details>
+    <div id="dev-panel" class="dev-panel" hidden><strong>DEVELOPMENT</strong><button id="dev-speed">Speed: 1×</button><button id="dev-advance">+10 seconds</button><button id="dev-threat">Bonnie at left door</button><button id="dev-outage">Drain power</button><button id="dev-dawn">5 seconds to dawn</button><button id="dev-night">Next night</button><span>Shift+F cycles speed</span></div>
     <footer class="terminal-footer"><span>LOCAL SURVIVAL PROTOTYPE</span><span>NO SIGNAL LEAVES THIS TERMINAL</span></footer>
     <noscript>This game needs JavaScript enabled in your browser.</noscript>
   </main>
