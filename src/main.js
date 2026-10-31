@@ -24,11 +24,9 @@ const sound = createAudio(CONFIG, { silent: manual });
 const save = createSave(dev ? SAVE_KEYS.dev : SAVE_KEYS.play);
 if (save.get().muted) sound.toggleMute();
 let savedWin = null;
-function paint() {
-  // Record each won night once, whether the live loop or a dev shortcut finished it.
-  if (state.mode === 'won' && savedWin !== state) { savedWin = state; save.win(state.night); }
-  render(state, { dev, speed, muted: sound.muted, progress: save.get() }); sound.update(state);
-}
+function paint() { render(state, { dev, speed, muted: sound.muted, progress: save.get() }); sound.update(state); }
+// Record each won night once, whether the live loop or a dev shortcut finished it.
+function recordWin() { if (state.mode === 'won' && savedWin !== state) { savedWin = state; save.win(state.night); } }
 
 function stopLoop() {
   if (frameId !== null) cancelAnimationFrame(frameId);
@@ -41,7 +39,7 @@ function tick() {
   // Read the current monotonic clock here. A browser may deliver a queued frame's
   // timestamp after resuming; it must not replace the fresh visibility baseline.
   const now = performance.now();
-  if (lastTime !== null) advance(state, (now - lastTime) / 1000 * speed, config);
+  if (lastTime !== null) { advance(state, (now - lastTime) / 1000 * speed, config); recordWin(); }
   lastTime = now;
   if (now - lastRender >= 70 || state.mode !== 'playing') { paint(); lastRender = now; }
   if (state.mode === 'playing') frameId = requestAnimationFrame(tick);
@@ -146,7 +144,7 @@ if (dev) {
     snapshot: () => structuredClone(state),
     sound: () => sound.status(),
     night: number => startNight(number),
-    advance: seconds => { advance(state, seconds, config); paint(); if (state.mode !== 'playing') stopLoop(); lastTime = performance.now(); },
+    advance: seconds => { advance(state, seconds, config); recordWin(); paint(); if (state.mode !== 'playing') stopLoop(); lastTime = performance.now(); },
     power: amount => { if (state.mode !== 'playing') return; state.power = Math.max(0, Math.min(100, amount)); if (state.power === 0) startOutage(state, config); paint(); },
     nearDawn: () => { if (state.mode !== 'playing') return; state.elapsed = config.nightDuration - 5; notify(state, 'Development shortcut: five seconds until dawn.'); paint(); },
     threat: (id = 'bonnie', room = 'door') => {

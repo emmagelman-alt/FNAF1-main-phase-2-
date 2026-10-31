@@ -70,7 +70,7 @@ Run the repeatable checks by opening [http://localhost:8000/tests/browser-tests.
 
 Verified locally in Chrome on **2026-10-28: 32/32 checks passed**, including the live animation loop, visibility/focus pause, all-artwork fallbacks, overlapping doorway threats, and Foxy's full-frame sprint artwork. All 33 files in the current asset manifest matched their recorded checksums. The title and office were also inspected visually in the browser. Run the regression page above to repeat the checks.
 
-Re-run in Chrome on **2026-10-30 after the Phase 2 tuning, sound, Nights 2–5, and saving work: 46/47 checks passed (18/18 engine, 4/4 save, and 24/25 browser checks).** The regression page now has 47 checks, including new sound, night-progression, and save checks. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
+Re-run in Chrome on **2026-10-30 after the Phase 2 tuning, sound, Nights 2–5, and saving work: 46/47 checks passed (18/18 engine, 4/4 save, and 24/25 browser checks).** The regression page received in the initial commit already ran 38 checks (16 engine, 16 browser, and 6 artwork), not the 32 stated above. This phase keeps all 38 and adds 9 (2 engine, 4 save, and 3 browser), for 47. The one failure also occurs on the unmodified code: the artwork check expects fully transparent sprite corners, and one corner pixel of `assets/images/animatronics/freddy-camera.png` has alpha 1/255. Gameplay is unaffected and the artwork was not changed. The live-loop check is timing-sensitive and occasionally fails on a first run; it passes on a rerun with the tab visible.
 
 ## Code and artwork integration
 
@@ -91,7 +91,14 @@ Every office layer covers the same normalized 16:9 canvas, fitted without stretc
 
 ## Phase 2 changes
 
-This phase continues the original design rather than replacing it. Everything listed here is a change to the work received in the initial commit.
+This phase continues the original design rather than replacing it. The baseline is commit `01b6c10`, "Initial commit: unmodified code as received." The earlier commit titled only "Initial commit" (`ffaef7a`) holds just `.gitattributes`. Compared with `01b6c10`:
+
+- No original file was removed, renamed, or split. New behavior lives in two new modules (`src/audio.js` and `src/save.js`), a `NIGHTS` table in `src/config.js`, and small hooks in `main.js`, `render.js`, `index.html`, and `styles.css`.
+- `src/engine.js` changed by one line: `createState` takes the night number instead of always using 1.
+- Two Night 1 values were retuned, and "Night 1" wording in the screens now names the current night. No other original logic was rewritten.
+- All 38 original checks remain. One original browser check was re-scoped, as described under Nights 2–5.
+
+Everything listed below is a change to that baseline.
 
 ### Night 1 tuning (`src/config.js` only)
 
@@ -179,10 +186,11 @@ A first guess cut Freddy's Night 5 warning to 3.1 s. That alone dropped the typi
 
 Code changes outside the table:
 - `engine.js`: `createState` takes the night number; it was hard-coded to 1.
-- `main.js`: keeps the current night's config and passes it to `advance` and the development shortcuts. The result button starts the next night after a win and retries the same night after a loss.
+- `main.js`: keeps the current night's config and passes it to `advance` and the development shortcuts. The result button starts the next night after a win and retries the same night after a loss. This replaces the original "Play Night 1 again" after a win. A won Night 1–4 can now be replayed only through New Game, which starts over from Night 1. Night 5 still offers a replay.
 - `render.js` and `index.html`: show the night in the HUD, the header, and the result text.
 - Development panel: a **Next night** button.
-- Tests: two engine checks (Night 1 unchanged and each later night at least as hard; Night 5 survivable on power) and one browser check of the win/loss/Night 5 flow.
+- Tests: two engine checks (Night 1 unchanged and each later night at least as hard; Night 5 survivable on power) and one browser check of the win/loss/Night 5 flow. That check also confirms that replaying Night 5 after a win resets the clock and power.
+- Re-scoped original check: "6 AM win during outage, replay reset, and return to menu" clicks the result button after a win. That click now starts Night 2 instead of replaying Night 1. The check is renamed "next-night reset" and also asserts that Night 2 started. Its other steps and assertions are unchanged.
 
 ### Saving, Continue, and stars (new `src/save.js`)
 
@@ -199,7 +207,7 @@ The implementation plan's Phase 4 asked to "save the next unlocked night and ear
   - Earned stars show under the title.
   - The result text says when progress was saved or a star earned.
 - **Hooks in existing files:**
-  - `main.js`: saves each won night once (from either the live loop or a dev shortcut), and wires New Game, Continue, and the mute setting.
+  - `main.js`: a small `recordWin()` saves each won night once, right after `advance` in the live loop or the dev shortcut, so `paint()` still only draws. It also wires New Game, Continue, and the mute setting.
   - `render.js`: shows Continue and the stars.
   - `index.html` and `styles.css`: the Continue button and the star line.
 - **Tests.** Four save checks in a new `tests/save-tests.js`, which runs in the browser page alongside the engine tests:
@@ -213,8 +221,8 @@ The implementation plan's Phase 4 asked to "save the next unlocked night and ear
 
 ## Known limitations and next task
 
-- Nights 1–5 and one star exist. There is no Night 6, Custom Night, second or third star, Golden Freddy, or 6 AM transition scene. Saves live in this browser's local storage only; a private window or cleared site data starts fresh.
-- Sound is synthesized and approximate. There is no phone call, voice, outage music box, or volume slider, and mute is not remembered after a refresh. CAM 6 is explicitly AUDIO ONLY: kitchen clatter plays alongside the textual quiet/clatter cues, and no kitchen picture is shown.
+- Nights 1–5 and one star exist. There is no Night 6, Custom Night, second or third star, Golden Freddy, or 6 AM transition scene. Saves live in this browser's local storage only; a private window or cleared site data starts fresh. There is no night select, so a won Night 1–4 can be replayed only by starting a New Game.
+- Sound is synthesized and approximate. There is no phone call, voice, outage music box, or volume slider. CAM 6 is explicitly AUDIO ONLY: kitchen clatter plays alongside the textual quiet/clatter cues, and no kitchen picture is shown.
 - Fixed office view; no mouse panning or animated jumpscares. Supplied close-up artwork appears behind the loss screen when available.
 - Camera character portraits are reusable position markers rather than perspective-matched room sprites. Missing art remains explicitly temporary. Doorway labels keep unfinished Freddy/Foxy office artwork testable.
 - Small portrait screens fit the scene but have compact controls; landscape is recommended. Device/browser coverage beyond the verified local Chrome run remains future work.

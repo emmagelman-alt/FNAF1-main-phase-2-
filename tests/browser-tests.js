@@ -99,10 +99,11 @@ await test('Power outage disables devices before a delayed loss', () => {
   assert(doc.getElementById('left-door').disabled && doc.getElementById('monitor-toggle').disabled);
   debug.advance(10); assert(debug.snapshot().mode === 'playing'); debug.advance(9); assert(debug.snapshot().outcome.cause === 'outage');
 });
-await test('6 AM win during outage, replay reset, and return to menu', () => {
+// After a win the result button now starts the next night, so this checks that reset.
+await test('6 AM win during outage, next-night reset, and return to menu', () => {
   click('retry'); debug.nearDawn(); debug.power(0); debug.advance(5);
   assert(debug.snapshot().mode === 'won' && doc.getElementById('result-title').textContent === '6:00 AM');
-  click('retry'); assert(debug.snapshot().elapsed === 0 && debug.snapshot().power === 100);
+  click('retry'); assert(debug.snapshot().elapsed === 0 && debug.snapshot().power === 100 && debug.snapshot().night === 2);
   key('Escape'); debug.advance(400); assert(debug.snapshot().mode === 'menu' && !doc.getElementById('menu').hidden);
 });
 await test('A win starts the next, harder night; a loss retries the same night; Night 5 is the last', () => {
@@ -118,7 +119,7 @@ await test('A win starts the next, harder night; a loss retries the same night; 
   debug.threat(); debug.advance(5); assert(debug.snapshot().outcome?.cause === 'bonnie', 'Night 5 used Night 1 timing');
   click('retry'); debug.nearDawn(); debug.advance(5);
   assert(doc.getElementById('result-description').textContent.includes('all five nights') && doc.getElementById('retry').textContent.includes('Play Night 5 again'));
-  click('retry'); assert(night() === 5);
+  click('retry'); assert(night() === 5 && debug.snapshot().elapsed === 0 && debug.snapshot().power === 100, 'Night 5 replay did not reset');
   key('Escape'); start(); assert(night() === 1, 'Menu start did not begin Night 1');
   key('Escape');
 });
